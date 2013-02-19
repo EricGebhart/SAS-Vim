@@ -6,9 +6,9 @@
 " Last Change: 2013 Feb 15
 
 
-if exists("b:did_indent")
-    finish
-endif
+"if exists("b:did_indent")
+"   finish
+"endif
 let b:did_indent = 1
 
 setlocal indentexpr=GettplIndent(v:lnum)
@@ -21,9 +21,9 @@ setlocal indentkeys+==done
 setlocal indentkeys+==define
 setlocal indentkeys+==else
 
-if exists("*GettplIndent")
-    finish
-endif
+"if exists("*GettplIndent")
+"   finish
+"endif
 
 
 function! s:GetPrevNonCommentLineNum( line_num )
@@ -44,6 +44,44 @@ function! s:GetPrevNonCommentLineNum( line_num )
     return nline
 endfunction
 
+function! s:GetPrevDefineindent( line_num )
+    "Find the last define event and return it's indent"
+    let DefineEventLine = '^\s*\<define[ *]event\>'
+
+    let nline = a:line_num
+    let indent = 0
+    while nline > 0
+        let nline = prevnonblank(nline-1)
+        if getline(nline) =~ DefineEventLine
+           let indnt = indent( nline )
+           break
+        endif
+    endwhile
+
+    return indnt
+endfunction
+
+function! s:GetDefineindent( line_num )
+    "Find the last define event and return it's indent"
+    let DefineEventLine = '^\s*\<define[ *]event\>'
+    let DefineTagsetLine = '^\s*\<define[ *]event\>'
+
+    let nline = a:line_num
+    let indent = 0
+    while nline > 0
+        let nline = prevnonblank(nline-1)
+        if getline(nline) =~ DefineEventLine
+           let indnt = indent( nline )
+           break
+        endif
+        if getline(nline) =~ DefineTagsetLine
+           let indnt = indent( nline ) + &shiftwidth
+           break
+        endif
+    endwhile
+
+    return indnt
+endfunction
 
 function! GettplIndent( line_num )
     " Line 0 always goes at column 0
@@ -63,6 +101,17 @@ function! GettplIndent( line_num )
     let prev_codeline = getline( prev_codeline_num )
     let indnt = indent( prev_codeline_num )
 
+    ""echom this_codeline
+    ""echom "======================"
+
+    "This isn't actually working because I'm not getting this_codeline for
+    "defines.
+    "Attempt to get back to where define is
+    if this_codeline =~ '^\s*\<define\>'
+        ""echom "this define"
+        return s:GetDefineindent( a:line_num )
+    endif
+    "
     " If the previous line was indenting...
     if prev_codeline =~ '^\s*\<\(define\|do\|start\|finish\|else\)\>'
         " then indent.
@@ -77,23 +126,21 @@ function! GettplIndent( line_num )
     endif
 
     "Attempt to get back to where define is
-    if this_codeline =~ '^\s*\<\end\>'
-        return 2 * &shiftwidth
+    if this_codeline =~ '^\s*\<end\>'
+        return s:GetPrevDefineindent( a:line_num )
     endif
 
     " At the end of a block, we have to unindent both the current line
     " (the "end" for instance) and the newly-created line.
-    if this_codeline =~ '^\s*\<\(end\|done\|else\)\>'
+    if this_codeline =~ '^\s*\<\(done\|else\)\>'
         return indnt - &shiftwidth
     endif
 
     "if finish is right now, we need to unindent if we aren't under a define
     "event statement..
-    "This isn't actually working...
-    if this_codeline =~ '^\s*\<\finish:\>'
-        if prev_codeline !~? '^\s*\<define\>'
-            return indnt - &shiftwidth
-        endif
+    if this_codeline =~ '^\s*\<finish\>'
+        let indnt = s:GetPrevDefineindent( a:line_num )
+        return indnt + &shiftwidth
     endif
 
 
